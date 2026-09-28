@@ -118,3 +118,8 @@ To upgrade GoAlert, bump `GOALERT_VERSION`, the per-architecture SHA256 values a
 
 It needs a `CHARMHUB_TOKEN` repository secret, created with `charmcraft login --export`.
 Register the `goalert-k8s` name on Charmhub first.
+
+## License
+
+This charm and rock are licensed under the [Apache License 2.0](LICENSE).
+GoAlert itself is also licensed under Apache 2.0 (see [upstream](https://github.com/target/goalert/blob/master/LICENSE.md)).
