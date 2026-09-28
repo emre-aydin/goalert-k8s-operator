@@ -1,0 +1,74 @@
+# Copyright 2026 Emre
+# See LICENSE file for licensing details.
+#
+# See https://documentation.ubuntu.com/charmcraft/stable/reference/files/charmcraft-yaml-file/
+
+name: goalert-k8s
+
+type: charm
+
+base: ubuntu@24.04
+
+platforms:
+  amd64:
+  arm64:
+
+title: GoAlert
+summary: On-call scheduling, automated escalations and notifications.
+description: |
+  [GoAlert](https://github.com/target/goalert) provides on-call scheduling,
+  automated escalations and notifications (like SMS or voice calls) to
+  automatically engage the right person, the right way, and at the right time.
+
+  This charm deploys and operates GoAlert on Kubernetes. It is built on the
+  12-factor `paas-charm` Go framework and supports PostgreSQL, ingress,
+  Prometheus metrics and Loki logging integrations, and horizontal scaling
+  (the leader unit runs the GoAlert engine, the other units run in API-only mode).
+links:
+  website:
+    - https://goalert.me
+
+extensions:
+  - go-framework
+
+requires:
+  postgresql:
+    interface: postgresql_client
+    optional: false
+    limit: 1
+
+config:
+  options:
+    data-encryption-key:
+      type: secret
+      optional: false
+      description: >-
+        Juju user secret ID holding the GoAlert data encryption key, used to encrypt
+        sensitive data (such as API keys) stored in the database. The secret must contain
+        a single key, "value". All units share this key and it must never change once
+        GoAlert has stored data, or that data becomes unreadable. Example:
+        `juju add-secret goalert-key value=$(openssl rand -hex 32)`,
+        `juju grant-secret goalert-key goalert-k8s`,
+        `juju config goalert-k8s data-encryption-key=<secret-id>`.
+
+actions:
+  create-admin-user:
+    description: >-
+      Create a GoAlert user with the admin role and basic (username/password)
+      authentication. Use this to bootstrap the first administrator.
+    params:
+      username:
+        type: string
+        description: Login username for the new admin user.
+      email:
+        type: string
+        description: Email address of the new admin user.
+      password:
+        type: string
+        description: >-
+          Password for the new admin user. If omitted, a random password is generated
+          and returned in the action results.
+    required:
+      - username
+      - email
+    additionalProperties: false

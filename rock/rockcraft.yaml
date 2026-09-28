@@ -1,0 +1,53 @@
+# Copyright 2026 Emre
+# See LICENSE file for licensing details.
+#
+# GoAlert rock built with the go-framework extension.
+#
+# GoAlert embeds a web UI that needs a Node/Bun toolchain to build, so instead of
+# compiling from source this rock installs the pinned, checksum-verified upstream
+# release binary into the location the go-framework extension expects.
+
+name: goalert
+base: bare
+build-base: ubuntu@24.04
+version: "0.35.0"
+summary: GoAlert on-call scheduling, automated escalations and notifications.
+description: |
+  GoAlert provides on-call scheduling, automated escalations and notifications
+  (like SMS or voice calls) to automatically engage the right person, the right
+  way, and at the right time.
+
+  Upstream project: https://github.com/target/goalert
+license: Apache-2.0
+
+platforms:
+  amd64:
+  arm64:
+
+extensions:
+  - go-framework
+
+parts:
+  go-framework/install-app:
+    plugin: nil
+    build-packages:
+      - curl
+      - ca-certificates
+    build-environment:
+      - GOALERT_VERSION: "v0.35.0"
+      - GOALERT_SHA256_AMD64: "ce8a23bab571163d1d9b90b7ab94fac4b523df44f6680c445f701d0428dfead6"
+      - GOALERT_SHA256_ARM64: "c011db0819efe66755204156e4ba72d7556b0b25889c7d4dd7febee389041beb"
+    override-build: |
+      set -euo pipefail
+      case "${CRAFT_ARCH_BUILD_FOR}" in
+        amd64) sha256="${GOALERT_SHA256_AMD64}" ;;
+        arm64) sha256="${GOALERT_SHA256_ARM64}" ;;
+        *) echo "unsupported architecture: ${CRAFT_ARCH_BUILD_FOR}" >&2; exit 1 ;;
+      esac
+      tarball="goalert-linux-${CRAFT_ARCH_BUILD_FOR}.tgz"
+      curl -fsSL -o "${tarball}" \
+        "https://github.com/target/goalert/releases/download/${GOALERT_VERSION}/${tarball}"
+      echo "${sha256}  ${tarball}" | sha256sum -c -
+      tar -xzf "${tarball}"
+      # The extension organizes bin/goalert into usr/local/bin/goalert.
+      install -D -m 0755 goalert/bin/goalert "${CRAFT_PART_INSTALL}/bin/goalert"

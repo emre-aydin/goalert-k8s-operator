@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-unit:
+    name: Lint, static and unit tests
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: charm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install tox
+        run: uv tool install tox --with tox-uv
+      - name: Lint
+        run: tox -e lint
+      - name: Static checks
+        run: tox -e static
+      - name: Unit tests
+        run: tox -e unit
+
+  integration:
+    name: Integration tests
+    needs: lint-and-unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Juju, MicroK8s, rockcraft and charmcraft
+        run: |
+          sudo snap install concierge --classic
+          sudo concierge prepare -p microk8s --extra-snaps astral-uv
+          sudo microk8s enable registry
+          sudo microk8s kubectl apply -f charm/tests/integration/metallb-rbac.yaml
+          sudo microk8s kubectl -n metallb-system rollout restart deploy/controller ds/speaker
+          sudo microk8s kubectl -n container-registry rollout status deployment/registry --timeout=300s
+      - name: Pack rock
+        working-directory: rock
+        run: rockcraft pack --verbose
+      - name: Push rock to the local registry
+        working-directory: rock
+        run: |
+          rockcraft.skopeo --insecure-policy copy --dest-tls-verify=false \
+            oci-archive:$(ls *.rock | head -1) docker://localhost:32000/goalert:ci
+      - name: Pack charm
+        working-directory: charm
+        run: charmcraft pack --verbose
+      - name: Install tox
+        run: uv tool install tox --with tox-uv
+      - name: Run integration tests
+        working-directory: charm
+        env:
+          ROCK_IMAGE: localhost:32000/goalert:ci
+        run: |
+          export CHARM_PATH=$(ls $PWD/*.charm | head -1)
+          tox -e integration
+      - name: Dump Juju status on failure
+        if: failure()
+        run: |
+          juju status --relations || true
+          juju debug-log --replay --no-tail --limit 2000 || true
