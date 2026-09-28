@@ -1,3 +1,6 @@
+# Copyright 2026 Emre
+# See LICENSE file for licensing details.
+
 # Workaround for the MicroK8s 1.36 metallb addon, whose controller lacks RBAC for
 # ConfigurationState resources and therefore never assigns LoadBalancer IPs.
 apiVersion: rbac.authorization.k8s.io/v1
