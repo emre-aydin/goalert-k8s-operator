@@ -1,0 +1,59 @@
+name: Publish to Charmhub
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    uses: ./.github/workflows/ci.yaml
+
+  publish:
+    name: Upload rock and charm to Charmhub (latest/edge)
+    needs: tests
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    env:
+      CHARMCRAFT_AUTH: ${{ secrets.CHARMHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tooling
+        run: |
+          sudo snap install lxd
+          sudo lxd init --auto
+          sudo usermod -aG lxd "$USER"
+          sudo snap install rockcraft --classic
+          sudo snap install charmcraft --classic
+      - name: Pack rock
+        working-directory: rock
+        run: sg lxd -c "rockcraft pack --verbose"
+      - name: Pack charm
+        working-directory: charm
+        run: sg lxd -c "charmcraft pack --verbose"
+      - name: Upload rock as the charm's OCI resource
+        working-directory: charm
+        run: |
+          rock=$(ls ../rock/*.rock | head -1)
+          charmcraft upload-resource goalert-k8s app-image \
+            --image="oci-archive:${rock}" --format=json | tee resource.json
+      - name: Upload and release charm
+        working-directory: charm
+        run: |
+          revision=$(charmcraft upload ./*.charm --format=json | jq -r .revision)
+          resource=$(jq -r .revision resource.json)
+          charmcraft release goalert-k8s --revision="${revision}" \
+            --channel=latest/edge --resource="app-image:${resource}"

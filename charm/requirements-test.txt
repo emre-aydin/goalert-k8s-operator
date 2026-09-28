@@ -1,0 +1,7 @@
+coverage[toml]
+email-validator>=2
+jubilant>=1.4
+ops[testing]>=3
+pytest
+pyyaml
+requests
