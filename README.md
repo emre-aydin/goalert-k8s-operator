@@ -108,6 +108,32 @@ CHARM_PATH=$PWD/goalert-k8s_amd64.charm ROCK_IMAGE=localhost:32000/goalert:0.35.
 To upgrade GoAlert, bump `GOALERT_VERSION`, the per-architecture SHA256 values and `version` in
 `rock/rockcraft.yaml`. The SHA256 values are shown on the upstream release page.
 
+### Try it in a disposable VM
+
+`scripts/dev-env.sh` sets up a Multipass VM where you can use the charm by hand together with
+COS Lite. The only thing it needs on the host is Multipass. The VM has its own MicroK8s, local
+registry and Juju controller, so your host's Juju client and controllers are never used.
+
+```shell
+scripts/dev-env.sh          # up + build + deploy, about 30-45 minutes the first time
+scripts/dev-env.sh info     # URLs and credentials
+scripts/dev-env.sh refresh  # rebuild and refresh GoAlert after a change
+scripts/dev-env.sh destroy  # delete the VM
+```
+
+The script deploys COS Lite in the `cos` model, and GoAlert with PostgreSQL in the `goalert` model.
+GoAlert connects to COS across models: ingress through COS's Traefik, metrics, logs and the Grafana
+dashboard. Traefik uses the VM's IP as its external hostname, and port 80 of the VM forwards to it,
+so your host browser can open:
+
+- GoAlert: `http://<VM IP>/goalert-goalert-k8s`. The script creates an `admin` user and `info` prints its password.
+- Grafana: `http://<VM IP>/cos-grafana`. The user is `admin` and `info` prints its password. GoAlert's dashboard is the go-framework's "Go Operator" dashboard.
+- Catalogue: `http://<VM IP>/cos-catalogue`
+
+Other commands: `up`, `build`, `deploy`, `snapshot`/`restore` (save and return to the freshly
+provisioned VM) and `shell`. `VM_NAME`, `VM_CPUS` (8), `VM_MEMORY` (16G) and `VM_DISK` (100G) override
+the defaults.
+
 ### Publishing
 
 `.github/workflows/publish.yaml` runs the tests, then for amd64 and arm64:
