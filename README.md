@@ -10,7 +10,7 @@ Go framework. The workload runs from a custom rock, built with the rockcraft `go
 
 | Path | Contents |
 | --- | --- |
-| `rock/` | `rockcraft.yaml` for the GoAlert rock. It installs the pinned upstream release binary and verifies its checksum. |
+| `rock/` | `rockcraft.yaml` for the GoAlert rock. It installs the pinned release binary from the [emre-aydin/goalert](https://github.com/emre-aydin/goalert) fork (upstream GoAlert plus Mattermost notifications) and verifies its checksum. |
 | `charm/` | The charm: `charmcraft.yaml`, `src/`, vendored charm libraries in `lib/`, and tests. |
 | `.github/workflows/` | CI (lint, static checks, unit and integration tests) and Charmhub publishing. |
 
@@ -174,14 +174,15 @@ Traefik an IP.
 ```shell
 (cd rock && rockcraft pack)
 rockcraft.skopeo --insecure-policy copy --dest-tls-verify=false \
-  oci-archive:rock/goalert_0.35.0_amd64.rock docker://localhost:32000/goalert:0.35.0
+  oci-archive:rock/goalert_0.35.0-emre-aydin.1_amd64.rock docker://localhost:32000/goalert:0.35.0-emre-aydin.1
 (cd charm && charmcraft pack)
 cd charm
-CHARM_PATH=$PWD/goalert-k8s_amd64.charm ROCK_IMAGE=localhost:32000/goalert:0.35.0 tox -e integration
+CHARM_PATH=$PWD/goalert-k8s_amd64.charm ROCK_IMAGE=localhost:32000/goalert:0.35.0-emre-aydin.1 tox -e integration
 ```
 
 To upgrade GoAlert, bump `GOALERT_VERSION`, the per-architecture SHA256 values and `version` in
-`rock/rockcraft.yaml`. The SHA256 values are shown on the upstream release page.
+`rock/rockcraft.yaml`. `GOALERT_REPO` picks the GitHub repository the release comes from. The
+SHA256 values are shown on the release page.
 
 ### Try it in a disposable VM
 

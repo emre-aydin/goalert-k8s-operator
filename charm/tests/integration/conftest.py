@@ -43,7 +43,7 @@ def charm_path_fixture(pytestconfig: pytest.Config) -> pathlib.Path:
 def rock_image_fixture(pytestconfig: pytest.Config) -> str:
     """OCI image reference of the GoAlert rock."""
     image = pytestconfig.getoption("--rock-image")
-    assert image, "pass --rock-image or set ROCK_IMAGE (e.g. localhost:32000/goalert:0.35.0)"
+    assert image, "pass --rock-image or set ROCK_IMAGE (e.g. localhost:32000/goalert:ci)"
     return image
 
 

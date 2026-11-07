@@ -4,20 +4,25 @@
 # GoAlert rock built with the go-framework extension.
 #
 # GoAlert embeds a web UI that needs a Node/Bun toolchain to build, so instead of
-# compiling from source this rock installs the pinned, checksum-verified upstream
-# release binary into the location the go-framework extension expects.
+# compiling from source this rock installs a pinned, checksum-verified release
+# binary into the location the go-framework extension expects. The binary comes from
+# the emre-aydin/goalert fork, which adds Mattermost notifications on top of upstream.
 
 name: goalert
 base: bare
 build-base: ubuntu@24.04
-version: "0.35.0"
+version: "0.35.0-emre-aydin.1"
 summary: GoAlert on-call scheduling, automated escalations and notifications.
 description: |
   GoAlert provides on-call scheduling, automated escalations and notifications
   (like SMS or voice calls) to automatically engage the right person, the right
   way, and at the right time.
 
+  This rock ships the emre-aydin/goalert fork, which adds Mattermost
+  notifications on top of upstream GoAlert.
+
   Upstream project: https://github.com/target/goalert
+  Fork: https://github.com/emre-aydin/goalert
 license: Apache-2.0
 
 platforms:
@@ -34,9 +39,10 @@ parts:
       - curl
       - ca-certificates
     build-environment:
-      - GOALERT_VERSION: "v0.35.0"
-      - GOALERT_SHA256_AMD64: "ce8a23bab571163d1d9b90b7ab94fac4b523df44f6680c445f701d0428dfead6"
-      - GOALERT_SHA256_ARM64: "c011db0819efe66755204156e4ba72d7556b0b25889c7d4dd7febee389041beb"
+      - GOALERT_REPO: "emre-aydin/goalert"
+      - GOALERT_VERSION: "v0.35.0-emre-aydin.1"
+      - GOALERT_SHA256_AMD64: "26c2038ad822e561e0672f9fa615a7418ff0ccbc6ac60c02287e84de6b755a6e"
+      - GOALERT_SHA256_ARM64: "2e3675a83ba2502addda258bb4708c85a5a79d88af84b366bcfef1456167602b"
     override-build: |
       set -euo pipefail
       case "${CRAFT_ARCH_BUILD_FOR}" in
@@ -46,7 +52,7 @@ parts:
       esac
       tarball="goalert-linux-${CRAFT_ARCH_BUILD_FOR}.tgz"
       curl -fsSL -o "${tarball}" \
-        "https://github.com/target/goalert/releases/download/${GOALERT_VERSION}/${tarball}"
+        "https://github.com/${GOALERT_REPO}/releases/download/${GOALERT_VERSION}/${tarball}"
       echo "${sha256}  ${tarball}" | sha256sum -c -
       tar -xzf "${tarball}"
       # The extension organizes bin/goalert into usr/local/bin/goalert.
