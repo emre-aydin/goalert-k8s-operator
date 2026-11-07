@@ -24,6 +24,7 @@ jobs:
     needs: tests
     runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: amd64
@@ -51,16 +52,16 @@ jobs:
       - name: Pack charm
         working-directory: charm
         run: sg lxd -c "charmcraft pack --verbose"
-      - name: Upload rock as the charm's OCI resource
+      # The charm is uploaded before the rock: Charmhub only accepts the app-image
+      # resource once a charm revision that declares it exists.
+      - name: Upload, attach resource and release
         working-directory: charm
+        shell: bash
         run: |
+          set -euo pipefail
+          revision=$(charmcraft upload ./*.charm --format=json | jq -er .revision)
           rock=$(ls ../rock/*.rock | head -1)
-          charmcraft upload-resource goalert-k8s app-image \
-            --image="oci-archive:${rock}" --format=json | tee resource.json
-      - name: Upload and release charm
-        working-directory: charm
-        run: |
-          revision=$(charmcraft upload ./*.charm --format=json | jq -r .revision)
-          resource=$(jq -r .revision resource.json)
+          resource=$(charmcraft upload-resource goalert-k8s app-image \
+            --image="oci-archive:${rock}" --format=json | jq -er .revision)
           charmcraft release goalert-k8s --revision="${revision}" \
             --channel=latest/edge --resource="app-image:${resource}"
