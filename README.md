@@ -81,6 +81,81 @@ mode on its next `update-status` hook. Running two engines briefly is safe in Go
 Not supported yet. Changing the secret's content makes existing encrypted data unreadable.
 GoAlert's `--data-encryption-key-old` flow is not exposed.
 
+## Receiving alerts from Alertmanager
+
+The charm's integrations send GoAlert's own metrics, logs and dashboard to COS. They do not route
+COS alerts into GoAlert. To page people from Prometheus or Loki alert rules, point Alertmanager at
+GoAlert's built-in Alertmanager webhook. No charm relation is involved.
+
+1. In GoAlert, create an escalation policy and a service. On the service, add an integration key
+   of type **Prometheus Alertmanager** and copy the URL it shows
+   (`.../api/v2/alertmanager/incoming?token=<key>`).
+2. Configure Alertmanager with a webhook receiver for that URL. From inside the cluster, use
+   GoAlert's service address. Keep the path prefix, because GoAlert expects it:
+
+   ```yaml
+   # am.yaml
+   route:
+     receiver: goalert
+     group_by: [juju_model, juju_application, alertname]
+     routes:
+       # COS fires Watchdog all the time to prove alerting works. Keep it out of GoAlert,
+       # or send it to a GoAlert heartbeat monitor instead.
+       - matchers: ['alertname="Watchdog"']
+         receiver: blackhole
+   receivers:
+     - name: blackhole
+     - name: goalert
+       webhook_configs:
+         - url: http://goalert-k8s.<model>.svc.cluster.local:8080/<model>-goalert-k8s/api/v2/alertmanager/incoming?token=<key>
+           send_resolved: true
+   ```
+
+   ```shell
+   juju config -m cos alertmanager config_file=@am.yaml
+   ```
+
+   The path prefix is the ingress path, `/<model>-<app>`. Without ingress, there is no prefix.
+
+### Testing it
+
+Post an alert straight to Alertmanager. This tests the Alertmanager to GoAlert path without
+waiting for a real alert rule to fire:
+
+```shell
+curl -X POST http://<alertmanager>/api/v2/alerts -H 'Content-Type: application/json' \
+  -d '[{"labels":{"alertname":"GoAlertTest","severity":"critical"},"annotations":{"summary":"Test alert"}}]'
+```
+
+After `group_wait` (30 seconds by default), the alert appears under **Alerts**, or on the service's
+**Alerts** page. The Alerts list may be filtered to favorited services or to active alerts. If no
+alert appears, look at `alertmanager_notifications_failed_total{integration="webhook"}` on
+Alertmanager's `/metrics`, and check that the integration key belongs to the service you are viewing.
+
+To resolve the test alert, post the same labels with an `endsAt` in the past:
+
+```shell
+curl -X POST http://<alertmanager>/api/v2/alerts -H 'Content-Type: application/json' \
+  -d "[{\"labels\":{\"alertname\":\"GoAlertTest\",\"severity\":\"critical\"},\"endsAt\":\"$(date -u -d '-1 min' +%Y-%m-%dT%H:%M:%SZ)\"}]"
+```
+
+### What happens when an alert resolves
+
+- With `send_resolved: true`, Alertmanager sends a `resolved` notification and GoAlert **closes**
+  the matching alert. Escalation stops. Users are only told about the close if they enabled status
+  updates on their contact method.
+- Without `send_resolved`, alerts stay open in GoAlert until someone closes them.
+- GoAlert matches alerts on Alertmanager's group key. Every alert sharing the same `group_by`
+  labels becomes **one** GoAlert alert, and that alert closes only when the whole group has
+  resolved.
+- It only works one way: acknowledging or closing an alert in GoAlert does not silence anything
+  in Alertmanager. While the condition still fires, Alertmanager re-sends it every
+  `repeat_interval` (4 hours by default). If you closed the alert by hand, that re-send opens a
+  new one. Use an Alertmanager silence to stop the source.
+- An alert that resolves and fires again (flapping) closes the first GoAlert alert and opens a new
+  one, which escalates from the start. A `for:` duration on the rule, or a longer
+  `group_interval`, makes noisy alerts calmer.
+
 ## Development
 
 The unit tests need no Juju or charmcraft. The `go-framework` extension metadata is expanded in
